@@ -4,19 +4,25 @@ using UnityEngine;
 
 public class BuildSystem : MonoBehaviour
 {
+    [SerializeField] private int materials = 0; 
     [SerializeField] private GameObject ghostWallPrefab;
     [SerializeField] private GameObject wallPrefab;
     [SerializeField] private GameObject ghostFloorPrefab;
     [SerializeField] private GameObject floorPrefab;
     [SerializeField] private GameObject ghostRampPrefab;
     [SerializeField] private GameObject rampPrefab;
+
+    [SerializeField] private GameObject ghostErrorWallPrefab;
+    [SerializeField] private GameObject ghostErrorFloorPrefab;
+    [SerializeField] private GameObject ghostErrorRampPrefab;
+
     [SerializeField] private float gridSize = 1.0f; // Size of each cell in the grid
     [SerializeField] private Transform player; // Reference to the player transform
     [SerializeField] private BuildType selectedBuildType; // Enum to select what to build
-    [SerializeField] private LayerMask snapLayerMask; // Layer mask for snapping to structures
-    
+
     private GameObject currentGhost;
     private bool isBuildMode = false;
+    private bool hasEnoughMaterials = true;
 
     void Update()
     {
@@ -24,6 +30,16 @@ public class BuildSystem : MonoBehaviour
         {
             isBuildMode = !isBuildMode;
             ToggleGhost(isBuildMode);
+        }
+
+        if (Input.GetKeyDown(KeyCode.N))
+        {
+            SelectNextBuildType();
+        }
+
+        if (Input.GetKeyDown(KeyCode.P))
+        {
+            SelectPreviousBuildType();
         }
 
         if (isBuildMode)
@@ -46,16 +62,18 @@ public class BuildSystem : MonoBehaviour
                 Destroy(currentGhost);
             }
 
+            hasEnoughMaterials = materials >= 5;
+
             switch (selectedBuildType)
             {
                 case BuildType.Wall:
-                    currentGhost = Instantiate(ghostWallPrefab);
+                    currentGhost = Instantiate(hasEnoughMaterials ? ghostWallPrefab : ghostErrorWallPrefab);
                     break;
                 case BuildType.Floor:
-                    currentGhost = Instantiate(ghostFloorPrefab);
+                    currentGhost = Instantiate(hasEnoughMaterials ? ghostFloorPrefab : ghostErrorFloorPrefab);
                     break;
                 case BuildType.Ramp:
-                    currentGhost = Instantiate(ghostRampPrefab);
+                    currentGhost = Instantiate(hasEnoughMaterials ? ghostRampPrefab : ghostErrorRampPrefab);
                     break;
             }
 
@@ -80,7 +98,11 @@ public class BuildSystem : MonoBehaviour
             Vector3 targetPosition = hit.point;
             targetPosition = SnapToGrid(targetPosition);
             currentGhost.transform.position = targetPosition;
-            currentGhost.transform.rotation = player.rotation; // Match the player's rotation
+
+            // Snap the rotation to the nearest 90 degrees
+            Vector3 playerRotation = player.eulerAngles;
+            playerRotation.y = Mathf.Round(playerRotation.y / 90) * 90;
+            currentGhost.transform.rotation = Quaternion.Euler(playerRotation);
         }
     }
 
@@ -91,27 +113,17 @@ public class BuildSystem : MonoBehaviour
         position.y = Mathf.Round(position.y / gridSize) * gridSize;
         position.z = Mathf.Round(position.z / gridSize) * gridSize;
 
-        // Snap to nearby structures
-        Collider[] colliders = Physics.OverlapSphere(position, gridSize, snapLayerMask);
-        if (colliders.Length > 0)
-        {
-            foreach (Collider col in colliders)
-            {
-                Vector3 closestPoint = col.ClosestPoint(position);
-                position = new Vector3(
-                    Mathf.Round(closestPoint.x / gridSize) * gridSize,
-                    Mathf.Round(closestPoint.y / gridSize) * gridSize,
-                    Mathf.Round(closestPoint.z / gridSize) * gridSize
-                );
-                break;
-            }
-        }
-
         return position;
     }
 
     void PlaceStructure()
     {
+        if (materials < 5)
+        {
+            Debug.Log("Not enough materials to build!");
+            return;
+        }
+
         switch (selectedBuildType)
         {
             case BuildType.Wall:
@@ -124,6 +136,35 @@ public class BuildSystem : MonoBehaviour
                 Instantiate(rampPrefab, currentGhost.transform.position, currentGhost.transform.rotation);
                 break;
         }
+
+        materials -= 5; // Deduct materials after placing the structure
+        ToggleGhost(isBuildMode); // Refresh the ghost preview
+    }
+
+    public void AddMaterials(int amount)
+    {
+        materials += amount;
+        Debug.Log($"Materials added: {amount}. Total materials: {materials}");
+    }
+
+    private void SelectNextBuildType()
+    {
+        selectedBuildType++;
+        if ((int)selectedBuildType >= System.Enum.GetValues(typeof(BuildType)).Length)
+        {
+            selectedBuildType = 0;
+        }
+        ToggleGhost(isBuildMode);
+    }
+
+    private void SelectPreviousBuildType()
+    {
+        selectedBuildType--;
+        if (selectedBuildType < 0)
+        {
+            selectedBuildType = (BuildType)(System.Enum.GetValues(typeof(BuildType)).Length - 1);
+        }
+        ToggleGhost(isBuildMode);
     }
 }
 
@@ -133,4 +174,5 @@ public enum BuildType
     Floor,
     Ramp
 }
+
 

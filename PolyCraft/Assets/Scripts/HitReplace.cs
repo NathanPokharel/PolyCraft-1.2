@@ -8,9 +8,21 @@ public class HitReplace : MonoBehaviour
     [SerializeField] private int hitsToReplace = 5;
     [SerializeField] private float scaleDuration = 0.1f; // Duration of the scaling animation
     [SerializeField] private float scaleAmount = 1.2f; // Amount to scale up
+    [SerializeField] private int materialsReward = 5; // Amount of materials to add upon replacement
 
     private int currentHits = 0;
     private bool isScaling = false;
+    private BuildSystem buildSystem;
+
+    void Start()
+    {
+        // Find the BuildSystem in the scene
+        buildSystem = FindObjectOfType<BuildSystem>();
+        if (buildSystem == null)
+        {
+            Debug.LogError("BuildSystem not found in the scene.");
+        }
+    }
 
     public void RegisterHit()
     {
@@ -34,6 +46,14 @@ public class HitReplace : MonoBehaviour
     {
         // Instantiate the replacement prefab at the same position and rotation
         Instantiate(replacementPrefab, transform.position, transform.rotation);
+        
+        // Increase materials in the BuildSystem
+        if (buildSystem != null)
+        {
+            buildSystem.AddMaterials(materialsReward);
+        }
+
+        // Destroy the current object
         Destroy(gameObject);
     }
 
